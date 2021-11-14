@@ -11,7 +11,13 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+from ansible.playbook import Playbook
+import logging
 import requests
+
+from cirun.ansible import AnsibleExecutor
+
+LOG = logging.getLogger(__name__)
 
 
 class Job(object):
@@ -26,7 +32,7 @@ class Job(object):
         self.vars = {}
         self.parents_data = self.get_job_data(self.data['parent'],
                                               self.parents_data)
-        self.run()
+        self.ansible_executor = AnsibleExecutor()
 
     def get_job_data(self, job, parents_data):
         job_url = self.system_url + '/api/job/{}'.format(job)
@@ -40,5 +46,6 @@ class Job(object):
         self.post_runs.append(job_data.json()[0]['post_run'])
 
     def run(self):
-        for playbook in self.pre_runs:
-            print(playbook)
+        LOG.info("======= Running Pre Playbooks ========")
+        for pre_run in self.pre_runs:
+            self.ansible_executor(playbook=pre_run['path'])

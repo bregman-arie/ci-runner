@@ -43,3 +43,4 @@ class Runner(object):
 
         LOG.info("{}: {}".format("running the job",
                                 crayons.yellow(self.job)))
+        self.job.run()
