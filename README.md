@@ -19,4 +19,8 @@ pip install .
 
 cirun --url <Zuul URL> --job <JOB NAME>
 
-For example: `cirun --url https://zuul.openstack.org/ --job openstack-tox-pep8`
+For example: `cirun --url https://zuul.openstack.org/ --job openstack-tox-pep8 --project neutron`
+
+## Supported Systems
+
+Currently only `zuul` is a supported system to use for reproducing jobs from.

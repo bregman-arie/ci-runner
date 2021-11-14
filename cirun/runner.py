@@ -23,10 +23,12 @@ LOG = logging.getLogger(__name__)
 
 class Runner(object):
 
-    def __init__(self, tenant=None, job_name=None, url=None, **kwargs):
+    def __init__(self, tenant=None, job_name=None, url=None,
+                 project_name=None, **kwargs):
         self.tenant = tenant
         self.job_name = job_name
         self.url = url
+        self.project_name = project_name
 
     def validate_input(self):
         pass
@@ -35,12 +37,14 @@ class Runner(object):
         job_url = self.url + '/api/job/{}'.format(self.job_name)
         job_data = requests.get(job_url)
         return job_data.json()[0]
-        
 
     def run(self):
         LOG.info("Gathering job info...")
-        self.job = Job(data = self.get_job_data(), system_url=self.url)
+        self.job = Job(data=self.get_job_data(),
+                       system_url=self.url,
+                       name=self.job_name,
+                       project_name=self.project_name)
 
         LOG.info("{}: {}".format("running the job",
-                                crayons.yellow(self.job)))
+                                 crayons.yellow(self.job_name)))
         self.job.run()

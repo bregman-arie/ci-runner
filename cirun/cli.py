@@ -27,6 +27,12 @@ def create_parser():
     parser.add_argument('--tenant', dest='tenant',
                         default='default',
                         help='The name of the tenant to use')
+    parser.add_argument('--project', '-p', dest='project_name',
+                        required=True,
+                        help='The name of the project')
+    parser.add_argument('--host', dest='host',
+                        default='default',
+                        help='The host on which to execute the job')
     parser.add_argument('--debug', dest='debug',
                         action='store_true', default=False,
                         help='Enable debug')

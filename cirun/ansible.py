@@ -19,26 +19,39 @@ from ansible.parsing.dataloader import DataLoader
 from ansible.inventory.manager import InventoryManager
 from ansible.vars.manager import VariableManager
 
+import os
 
 
 class AnsibleExecutor(object):
 
-    def __init__(self, playbook):
+    def __init__(self, playbook=None):
         self.playbook = playbook
 
-    def execute(self):
-        print("Running playbook: {}".fomrat(self.playbook))
+    def execute(self, work_dir=os.getcwd(), playbook=None):
+        if playbook:
+            self.playbook = playbook
+        self.playbook = os.path.join(work_dir, playbook)
+        print("Running playbook: {}".format(self.playbook))
         loader = DataLoader()
 
-        context.CLIARGS = ImmutableDict(tags={}, listtags=False, listtasks=False, listhosts=False, syntax=False, connection='ssh',
-                            module_path=None, forks=100, remote_user='xxx', private_key_file=None,
-                            ssh_common_args=None, ssh_extra_args=None, sftp_extra_args=None, scp_extra_args=None, become=True,
-                            become_method='sudo', become_user='root', verbosity=True, check=False, start_at_task=None)
+        context.CLIARGS = ImmutableDict(
+            tags={}, listtags=False, listtasks=False, listhosts=False,
+            syntax=False, connection='ssh', module_path=None, forks=100,
+            remote_user='xxx', private_key_file=None, ssh_common_args=None,
+            ssh_extra_args=None, sftp_extra_args=None, scp_extra_args=None,
+            become=True, become_method='sudo',  become_user='root',
+            verbosity=True, check=False, start_at_task=None)
 
         inventory = InventoryManager(loader=loader, sources=('./inventory',))
 
-        variable_manager = VariableManager(loader=loader, inventory=inventory, version_info=CLI.version_info(gitinfo=False))
+        variable_manager = VariableManager(
+            loader=loader, inventory=inventory, version_info=CLI.version_info(
+                gitinfo=False))
 
-        pbex = PlaybookExecutor(playbooks=[playbook], inventory=inventory, variable_manager=variable_manager, loader=loader, passwords={})
+        pbex = PlaybookExecutor(
+            playbooks=[self.playbook], inventory=inventory,
+            variable_manager=variable_manager,
+            loader=loader, passwords={})
 
         results = pbex.run()
+        print(results)
