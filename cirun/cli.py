@@ -12,25 +12,38 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 import argparse
+import logging
 
 from cirun.runner import Runner
 
 
 def create_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--url', dest='url',
+    parser.add_argument('--url', dest='url', required=True,
                         help='CI/CD system URL')
-    parser.add_argument('--job', dest='job',
+    parser.add_argument('--job', dest='job_name',
+                        required=True,
                         help='The name of the job to reproduce')
     parser.add_argument('--tenant', dest='tenant',
                         default='default',
                         help='The name of the tenant to use')
+    parser.add_argument('--debug', dest='debug',
+                        action='store_true', default=False,
+                        help='Enable debug')
     return parser
+
+
+def setup_logging(debug):
+    """Sets the logging."""
+    format = '%(message)s'
+    level = logging.DEBUG if debug else logging.INFO
+    logging.basicConfig(level=level, format=format)
 
 
 def main():
     parser = create_parser()
     args = parser.parse_args()
+    setup_logging(args.debug)
     runner = Runner(**vars(args))
     runner.validate_input()
     runner.run()
