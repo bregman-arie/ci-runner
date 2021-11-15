@@ -83,7 +83,7 @@ class Job(object):
 
     def sync_project(self, project):
         sync_cmd = ['git', 'pull']
-        LOG.info("syncing project: {}".format(crayons.yellow(project)))
+        # LOG.info("syncing project: {}".format(crayons.yellow(project)))
         subprocess.run(sync_cmd, stdout=subprocess.DEVNULL,
                        cwd=project)
 
@@ -97,10 +97,24 @@ class Job(object):
                 path=self.root_dir)
         return zuul_dir_path
 
+
+    def get_roles_paths(self, job_data):
+        roles_paths = ""
+        for role in job_data['roles']:
+            project_path = os.path.join(self.workspace, role['target_name'])
+            if os.path.isdir(project_path):
+                self.sync_project(project_path)
+            else:
+                self.clone_project("https://" + role['canonical_project_name'])
+            roles_paths = project_path + "/roles" + ":" + roles_paths
+        return roles_paths
+
     def run(self):
         self.zuul_dir_path = self.clone_zuul()
         LOG.info("======= Running Pre Playbooks ========")
         for pre_run in self.pre_runs:
+            roles_paths = self.get_roles_paths(pre_run[0])
+            LOG.info("roles paths: {}".format(roles_paths))
             project_to_clone = self.get_project_to_clone(pre_run[0])
             project_local_path = os.path.join(
                 self.workspace, project_to_clone.rsplit('/')[-1])
@@ -113,6 +127,7 @@ class Job(object):
                 path=project_local_path, host=self.host)
             self.ansible_executor.write_config(
                 path=project_local_path,
+                default_roles_path=roles_paths,
                 default_module_path=os.path.join(
                     self.zuul_dir_path, 'zuul/ansible/base/library/'))
             self.ansible_executor.execute(

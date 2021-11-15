@@ -30,7 +30,7 @@ class AnsibleExecutor(object):
             self.playbook = playbook
         self.playbook = os.path.join(work_dir, playbook)
         ansible_cmd = ['ansible-playbook', self.playbook]
-        print("Running playbook: {}".format(self.playbook))
+        LOG.info("running playbook: {}".format(self.playbook))
         res = subprocess.run(ansible_cmd, cwd=work_dir)
         if res.returncode != 0:
             LOG.error("Oh no! something went terribly wrong...good bye! :)")
@@ -46,7 +46,9 @@ class AnsibleExecutor(object):
         # TODO(abregman): consider moving this part to Jinja2
         self.conf_file_path = os.path.join(path, conf_file_name)
         with open(self.conf_file_path, 'w+') as f:
-            f.write("[DEFAULT]")
-            f.write("DEFAULT_MODULE_PATH={}".format(
+            f.write("[defaults]\n")
+            f.write("library={}\n".format(
                 kwargs['default_module_path']))
+            f.write("roles_path={}\n".format(
+                kwargs['default_roles_path']))
         LOG.info("wrote ansible config: {}".format(self.conf_file_path))
