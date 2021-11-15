@@ -19,12 +19,13 @@ import subprocess
 
 from cirun.ansible import AnsibleExecutor
 
+requests.packages.urllib3.disable_warnings()
 LOG = logging.getLogger(__name__)
 
 
 class Job(object):
 
-    def __init__(self, data, system_url, name, project_name, host):
+    def __init__(self, data, system_url, name, project_name, host, tenant=None):
         self.data = data
         self.system_url = system_url
         self.project_name = project_name
@@ -36,8 +37,9 @@ class Job(object):
         self.runs = []
         self.post_runs = []
         self.vars = {}
-        self.parents_data = self.get_job_data(self.data['parent'],
-                                              self.parents_data)
+        self.tenant = tenant
+        self.parents_data = self.get_parents_jobs_data(
+            self.data['parent'], self.parents_data)
         self.ansible_executor = AnsibleExecutor()
         self.workspace = self.create_workspace()
 
@@ -55,20 +57,30 @@ class Job(object):
                 crayons.green(project_job_dir)))
         return project_job_dir
 
-    def get_job_data(self, job, parents_data):
-        job_url = self.system_url + '/api/job/{}'.format(job)
-        job_data = requests.get(job_url)
-        parents_data[job] = job_data.json()[0]
+    @staticmethod
+    def get_job_data(url, job_name, tenant=None):
+        job_url  = url + '/api'
+        if tenant:
+            job_url = job_url + '/tenant/{}'.format(tenant)
+        job_url = job_url + '/job/{}'.format(job_name)
+        # TODO(abregman): Enable SSL after fixing SF ssl verification
+        job_data = requests.get(job_url, verify=False)
+        return job_data.json()[0]
+
+    def get_parents_jobs_data(self, job, parents_data):
+        parents_data[job] = Job.get_job_data(job_name=job, url=self.system_url,
+                                             tenant=self.tenant)
         if 'parent' in parents_data[job] and parents_data[job]['parent']:
-            parents_data = self.get_job_data(parents_data[job]['parent'],
-                                             parents_data)
-        self.pre_runs.append(job_data.json()[0]['pre_run'])
-        self.runs.append(job_data.json()[0]['run'])
-        self.post_runs.append(job_data.json()[0]['post_run'])
+            parents_data = self.get_parents_jobs_data(
+                parents_data[job]['parent'], parents_data)
+        self.pre_runs.append(parents_data[job]['pre_run'])
+        self.runs.append(parents_data[job]['run'])
+        self.post_runs.append(parents_data[job]['post_run'])
+        return parents_data
 
     def clone_project(self, remote_project, path):
         if "http" not in remote_project:
-            remote_project = "https://" + remote_project
+            remote_project = "ssh://{}@".format(os.environ.get('USERNAME')) + remote_project
         clone_cmd = ['git', 'clone', remote_project]
         LOG.info("cloning project {} to {}".format(
             crayons.cyan(remote_project), crayons.cyan(path)))
@@ -105,14 +117,20 @@ class Job(object):
             if os.path.isdir(project_path):
                 self.sync_project(project_path)
             else:
-                self.clone_project("https://" + role['canonical_project_name'])
+                # TODO(abregman): some zuul instances has the key named differently :|
+                if 'canonical_project_name' in role:
+                    self.clone_project(role['canonical_project_name'],
+                                       path=self.workspace)
+                else:
+                    self.clone_project(role['project_canonical_name'],
+                                       path=self.workspace)
             roles_paths = project_path + "/roles" + ":" + roles_paths
         return roles_paths
 
     def run(self):
         self.zuul_dir_path = self.clone_zuul()
         LOG.info("======= Running Pre Playbooks ========")
-        for pre_run in self.pre_runs:
+        for pre_run in self.pre_runs[2:]:
             roles_paths = self.get_roles_paths(pre_run[0])
             LOG.info("roles paths: {}".format(roles_paths))
             project_to_clone = self.get_project_to_clone(pre_run[0])
@@ -125,6 +143,8 @@ class Job(object):
                 self.sync_project(project_local_path)
             self.ansible_executor.write_inventory(
                 path=project_local_path, host=self.host)
+            self.ansible_executor.write_variables(
+                path=project_local_path)
             self.ansible_executor.write_config(
                 path=project_local_path,
                 default_roles_path=roles_paths,

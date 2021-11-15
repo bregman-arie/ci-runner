@@ -34,16 +34,13 @@ class Runner(object):
     def validate_input(self):
         pass
 
-    def get_job_data(self):
-        job_url = self.url + '/api/job/{}'.format(self.job_name)
-        job_data = requests.get(job_url)
-        return job_data.json()[0]
-
     def run(self):
         LOG.info("Gathering job info...")
-        self.job = Job(data=self.get_job_data(),
+        self.job = Job(data=Job.get_job_data(
+            job_name=self.job_name, url=self.url, tenant=self.tenant),
                        system_url=self.url,
                        name=self.job_name,
+                       tenant=self.tenant,
                        project_name=self.project_name,
                        host=self.host)
 

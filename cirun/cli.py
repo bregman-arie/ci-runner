@@ -25,7 +25,6 @@ def create_parser():
                         required=True,
                         help='The name of the job to reproduce')
     parser.add_argument('--tenant', dest='tenant',
-                        default='default',
                         help='The name of the tenant to use')
     parser.add_argument('--project', '-p', dest='project_name',
                         required=True,
