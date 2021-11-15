@@ -11,15 +11,13 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-from ansible import context
-from ansible.cli import CLI
-from ansible.module_utils.common.collections import ImmutableDict
-from ansible.executor.playbook_executor import PlaybookExecutor
-from ansible.parsing.dataloader import DataLoader
-from ansible.inventory.manager import InventoryManager
-from ansible.vars.manager import VariableManager
-
+import logging
 import os
+import subprocess
+import sys
+
+
+LOG = logging.getLogger(__name__)
 
 
 class AnsibleExecutor(object):
@@ -31,27 +29,24 @@ class AnsibleExecutor(object):
         if playbook:
             self.playbook = playbook
         self.playbook = os.path.join(work_dir, playbook)
+        ansible_cmd = ['ansible-playbook', self.playbook]
         print("Running playbook: {}".format(self.playbook))
-        loader = DataLoader()
+        res = subprocess.run(ansible_cmd, cwd=work_dir)
+        if res.returncode != 0:
+            LOG.error("Oh no! something went terribly wrong...good bye! :)")
+            sys.exit(2)
 
-        context.CLIARGS = ImmutableDict(
-            tags={}, listtags=False, listtasks=False, listhosts=False,
-            syntax=False, connection='ssh', module_path=None, forks=100,
-            remote_user='xxx', private_key_file=None, ssh_common_args=None,
-            ssh_extra_args=None, sftp_extra_args=None, scp_extra_args=None,
-            become=True, become_method='sudo',  become_user='root',
-            verbosity=True, check=False, start_at_task=None)
+    def write_inventory(self, path, host):
+        self.inventory_path = os.path.join(path, 'inventory')
+        with open(self.inventory_path, 'w+') as f:
+            f.write(host)
+        LOG.info("wrote inventory: {}".format(self.inventory_path))
 
-        inventory = InventoryManager(loader=loader, sources=('./inventory',))
-
-        variable_manager = VariableManager(
-            loader=loader, inventory=inventory, version_info=CLI.version_info(
-                gitinfo=False))
-
-        pbex = PlaybookExecutor(
-            playbooks=[self.playbook], inventory=inventory,
-            variable_manager=variable_manager,
-            loader=loader, passwords={})
-
-        results = pbex.run()
-        print(results)
+    def write_config(self, path, conf_file_name='ansible.cfg', **kwargs):
+        # TODO(abregman): consider moving this part to Jinja2
+        self.conf_file_path = os.path.join(path, conf_file_name)
+        with open(self.conf_file_path, 'w+') as f:
+            f.write("[DEFAULT]")
+            f.write("DEFAULT_MODULE_PATH={}".format(
+                kwargs['default_module_path']))
+        LOG.info("wrote ansible config: {}".format(self.conf_file_path))

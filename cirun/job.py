@@ -24,11 +24,13 @@ LOG = logging.getLogger(__name__)
 
 class Job(object):
 
-    def __init__(self, data, system_url, name, project_name):
+    def __init__(self, data, system_url, name, project_name, host):
         self.data = data
         self.system_url = system_url
         self.project_name = project_name
         self.name = name
+        self.host = host
+        self.root_dir = os.path.join(os.path.expanduser('~'), '.cirun')
         self.parents_data = {}
         self.pre_runs = []
         self.runs = []
@@ -40,10 +42,9 @@ class Job(object):
         self.workspace = self.create_workspace()
 
     def create_workspace(self):
-        root_dir = os.path.join(os.path.expanduser('~'), '.cirun')
-        if not os.path.isdir(root_dir):
-            os.makedirs(root_dir)
-        project_job_dir = os.path.join(root_dir, "{}_{}".format(
+        if not os.path.isdir(self.root_dir):
+            os.makedirs(self.root_dir)
+        project_job_dir = os.path.join(self.root_dir, "{}_{}".format(
             self.name, self.project_name))
         if not os.path.isdir(project_job_dir):
             os.makedirs(project_job_dir)
@@ -65,14 +66,14 @@ class Job(object):
         self.runs.append(job_data.json()[0]['run'])
         self.post_runs.append(job_data.json()[0]['post_run'])
 
-    def clone_to_workspace(self, remote_project):
+    def clone_project(self, remote_project, path):
         if "http" not in remote_project:
             remote_project = "https://" + remote_project
         clone_cmd = ['git', 'clone', remote_project]
         LOG.info("cloning project {} to {}".format(
-            crayons.cyan(remote_project), crayons.cyan(self.workspace)))
+            crayons.cyan(remote_project), crayons.cyan(path)))
         subprocess.run(clone_cmd, stdout=subprocess.DEVNULL,
-                       cwd=self.workspace)
+                       cwd=path)
 
     def get_project_to_clone(self, data):
         project = data['source_context']['project']
@@ -84,17 +85,37 @@ class Job(object):
         sync_cmd = ['git', 'pull']
         LOG.info("syncing project: {}".format(crayons.yellow(project)))
         subprocess.run(sync_cmd, stdout=subprocess.DEVNULL,
-                       cwd=self.workspace)
+                       cwd=project)
+
+    def clone_zuul(self):
+        zuul_dir_path = os.path.join(self.root_dir, 'zuul')
+        if os.path.isdir(zuul_dir_path):
+            self.sync_project(zuul_dir_path)
+        else:
+            self.clone_project(
+                remote_project='https://opendev.org/zuul/zuul.git',
+                path=self.root_dir)
+        return zuul_dir_path
 
     def run(self):
+        self.zuul_dir_path = self.clone_zuul()
         LOG.info("======= Running Pre Playbooks ========")
         for pre_run in self.pre_runs:
             project_to_clone = self.get_project_to_clone(pre_run[0])
             project_local_path = os.path.join(
                 self.workspace, project_to_clone.rsplit('/')[-1])
             if not os.path.isdir(os.path.join(project_local_path)):
-                self.clone_to_workspace(project_to_clone)
+                self.clone_project(remote_project=project_to_clone,
+                                   path=self.workspace)
             else:
                 self.sync_project(project_local_path)
-            self.ansible_executor.execute(playbook=os.path.join(
-                project_local_path, pre_run[0]['path']))
+            self.ansible_executor.write_inventory(
+                path=project_local_path, host=self.host)
+            self.ansible_executor.write_config(
+                path=project_local_path,
+                default_module_path=os.path.join(
+                    self.zuul_dir_path, 'zuul/ansible/base/library/'))
+            self.ansible_executor.execute(
+                work_dir=project_local_path,
+                playbook=os.path.join(
+                    project_local_path, pre_run[0]['path']))

@@ -24,11 +24,12 @@ LOG = logging.getLogger(__name__)
 class Runner(object):
 
     def __init__(self, tenant=None, job_name=None, url=None,
-                 project_name=None, **kwargs):
+                 project_name=None, host=None, **kwargs):
         self.tenant = tenant
         self.job_name = job_name
         self.url = url
         self.project_name = project_name
+        self.host = host
 
     def validate_input(self):
         pass
@@ -43,7 +44,8 @@ class Runner(object):
         self.job = Job(data=self.get_job_data(),
                        system_url=self.url,
                        name=self.job_name,
-                       project_name=self.project_name)
+                       project_name=self.project_name,
+                       host=self.host)
 
         LOG.info("{}: {}".format("running the job",
                                  crayons.yellow(self.job_name)))
