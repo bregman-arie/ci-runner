@@ -32,6 +32,9 @@ def create_parser():
     parser.add_argument('--host', dest='host',
                         default='default',
                         help='The host on which to execute the job')
+    parser.add_argument('--start', '-s', dest='start_playbook',
+                        default=0, type=int,
+                        help='The number of the playbook to start the run at')
     parser.add_argument('--debug', dest='debug',
                         action='store_true', default=False,
                         help='Enable debug')

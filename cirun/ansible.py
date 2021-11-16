@@ -30,11 +30,14 @@ class AnsibleExecutor(object):
                              'build': '123456789',
                              'change': '123456789',
                              'executor': {'hostname': 'local',
+                                          'src_root': '',
+                                          'work_root': '/tmp',
                                           'log_root': '/tmp/dummy',
                                           'inventory_file': '/tmp/dummy'},
                              'patchset': '123456789',
                              'tag': None,
                              'message': None,
+                             'zuul_log_id': 'fake',
                              'project': {'canonical_name': None}},
                     'zuul_log_id': 'fake'}
 
@@ -45,7 +48,8 @@ class AnsibleExecutor(object):
         if playbook:
             self.playbook = playbook
         self.playbook = os.path.join(work_dir, playbook)
-        ansible_cmd = ['ansible-playbook', playbook, "--extra-vars", "@job_vars.yaml"]
+        ansible_cmd = ['ansible-playbook', playbook,
+                       "-i", "inventory", "--extra-vars", "@job_vars.yaml"]
         LOG.info("running playbook: {}".format(self.playbook))
         LOG.info("command: {}".format(' '.join(ansible_cmd)))
         res = subprocess.run(ansible_cmd, cwd=work_dir)
@@ -56,6 +60,7 @@ class AnsibleExecutor(object):
     def write_inventory(self, path, host):
         self.inventory_path = os.path.join(path, 'inventory')
         with open(self.inventory_path, 'w+') as f:
+            f.write("[all]\n")
             f.write(host)
         LOG.info("wrote inventory: {}".format(self.inventory_path))
 
@@ -68,6 +73,8 @@ class AnsibleExecutor(object):
                 kwargs['default_module_path']))
             f.write("roles_path={}\n".format(
                 kwargs['default_roles_path']))
+            f.write("action_plugins={}\n".format(
+                kwargs['action_plugins']))
         LOG.info("wrote ansible config: {}".format(self.conf_file_path))
 
     def write_variables(self, path, vars_file_name='job_vars.yaml', **kwargs):

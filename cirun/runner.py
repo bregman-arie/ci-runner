@@ -13,7 +13,6 @@
 #    under the License.
 import crayons
 import logging
-import requests
 
 from cirun.job import Job
 
@@ -24,12 +23,14 @@ LOG = logging.getLogger(__name__)
 class Runner(object):
 
     def __init__(self, tenant=None, job_name=None, url=None,
-                 project_name=None, host=None, **kwargs):
+                 project_name=None, host=None, start_playbook=0,
+                 **kwargs):
         self.tenant = tenant
         self.job_name = job_name
         self.url = url
         self.project_name = project_name
         self.host = host
+        self.start_playbook = start_playbook
 
     def validate_input(self):
         pass
@@ -41,6 +42,7 @@ class Runner(object):
                        system_url=self.url,
                        name=self.job_name,
                        tenant=self.tenant,
+                       start_playbook=self.start_playbook,
                        project_name=self.project_name,
                        host=self.host)
 

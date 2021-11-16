@@ -25,13 +25,15 @@ LOG = logging.getLogger(__name__)
 
 class Job(object):
 
-    def __init__(self, data, system_url, name, project_name, host, tenant=None):
+    def __init__(self, data, system_url, name, project_name, host, tenant=None,
+                 start_playbook=0):
         self.data = data
         self.system_url = system_url
         self.project_name = project_name
         self.name = name
         self.host = host
         self.root_dir = os.path.join(os.path.expanduser('~'), '.cirun')
+        self.start_playbook = start_playbook
         self.parents_data = {}
         self.pre_runs = []
         self.runs = []
@@ -40,8 +42,22 @@ class Job(object):
         self.tenant = tenant
         self.parents_data = self.get_parents_jobs_data(
             self.data['parent'], self.parents_data)
+        self.playbooks = self.get_playbooks_by_order()
         self.ansible_executor = AnsibleExecutor()
         self.workspace = self.create_workspace()
+
+    def get_playbooks_by_order(self):
+        playbooks = []
+        for playbook in self.pre_runs:
+            if playbook:
+                playbooks.append(playbook[0])
+        for playbook in self.runs:
+            if playbook:
+                playbooks.append(playbook[0])
+        for playbook in self.post_runs[::-1]:
+            if playbook:
+                playbooks.append(playbook[0])
+        return playbooks
 
     def create_workspace(self):
         if not os.path.isdir(self.root_dir):
@@ -59,7 +75,7 @@ class Job(object):
 
     @staticmethod
     def get_job_data(url, job_name, tenant=None):
-        job_url  = url + '/api'
+        job_url = url + '/api'
         if tenant:
             job_url = job_url + '/tenant/{}'.format(tenant)
         job_url = job_url + '/job/{}'.format(job_name)
@@ -80,7 +96,8 @@ class Job(object):
 
     def clone_project(self, remote_project, path):
         if "http" not in remote_project:
-            remote_project = "ssh://{}@".format(os.environ.get('USERNAME')) + remote_project
+            remote_project = "ssh://{}@".format(
+                os.environ.get('USERNAME')) + remote_project
         clone_cmd = ['git', 'clone', remote_project]
         LOG.info("cloning project {} to {}".format(
             crayons.cyan(remote_project), crayons.cyan(path)))
@@ -109,7 +126,6 @@ class Job(object):
                 path=self.root_dir)
         return zuul_dir_path
 
-
     def get_roles_paths(self, job_data):
         roles_paths = ""
         for role in job_data['roles']:
@@ -117,7 +133,8 @@ class Job(object):
             if os.path.isdir(project_path):
                 self.sync_project(project_path)
             else:
-                # TODO(abregman): some zuul instances has the key named differently :|
+                # TODO(abregman): some zuul instances has the key
+                #                 named differently :|
                 if 'canonical_project_name' in role:
                     self.clone_project(role['canonical_project_name'],
                                        path=self.workspace)
@@ -127,13 +144,18 @@ class Job(object):
             roles_paths = project_path + "/roles" + ":" + roles_paths
         return roles_paths
 
+    def print_playbooks_order(self):
+        for i, playbook in enumerate(self.playbooks):
+            LOG.info("{}: {}".format(i, playbook['path']))
+
     def run(self):
         self.zuul_dir_path = self.clone_zuul()
-        LOG.info("======= Running Pre Playbooks ========")
-        for pre_run in self.pre_runs[2:]:
-            roles_paths = self.get_roles_paths(pre_run[0])
+        self.print_playbooks_order()
+        LOG.info("======= Running Playbooks ========")
+        for playbook in self.playbooks[self.start_playbook:]:
+            roles_paths = self.get_roles_paths(playbook)
             LOG.info("roles paths: {}".format(roles_paths))
-            project_to_clone = self.get_project_to_clone(pre_run[0])
+            project_to_clone = self.get_project_to_clone(playbook)
             project_local_path = os.path.join(
                 self.workspace, project_to_clone.rsplit('/')[-1])
             if not os.path.isdir(os.path.join(project_local_path)):
@@ -149,8 +171,14 @@ class Job(object):
                 path=project_local_path,
                 default_roles_path=roles_paths,
                 default_module_path=os.path.join(
-                    self.zuul_dir_path, 'zuul/ansible/base/library/'))
+                    self.zuul_dir_path,
+                    'zuul/ansible/base/library/'),
+                action_plugins="{}:{}".format(os.path.join(
+                    self.zuul_dir_path,
+                    'zuul/ansible/base/actiontrusted'),
+                    os.path.join(self.zuul_dir_path,
+                                 'zuul/ansible/base/actiongeneral')))
             self.ansible_executor.execute(
                 work_dir=project_local_path,
                 playbook=os.path.join(
-                    project_local_path, pre_run[0]['path']))
+                    project_local_path, playbook['path']))

@@ -21,9 +21,21 @@ pip install .
 
 ## Usage
 
-General usage: `cirun --url <Zuul URL> --job <JOB NAME> --project <PROJECT NAME`
+### General Usage
 
-For example: `cirun --url https://zuul.openstack.org/ --job openstack-tox-pep8 --project neutron`
+`cirun --url <Zuul URL> --job <JOB NAME> --project <PROJECT NAME`
+
+### Run specific job
+
+The following will run `openstack-tox-pep8` job using a local project called neutron
+
+`cirun --url https://zuul.openstack.org/ --job openstack-tox-pep8 --project neutron`
+
+### Start from a specific playbook
+
+You can choose to start from a specific playbook instead of running from the beginning
+
+`cirun --url https://zuul.openstack.org/ --job openstack-tox-pep8 --project neutron --start 2`
 
 ## Supported Systems
 
