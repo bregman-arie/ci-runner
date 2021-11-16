@@ -25,11 +25,12 @@ LOG = logging.getLogger(__name__)
 
 class Job(object):
 
-    def __init__(self, data, system_url, name, project_name, host, tenant=None,
+    def __init__(self, data, system_url, name, project_path, host, tenant=None,
                  start_playbook=0):
         self.data = data
         self.system_url = system_url
-        self.project_name = project_name
+        self.project_path = project_path
+        self.project_name = self.project_path.split('/')[-1]
         self.name = name
         self.host = host
         self.root_dir = os.path.join(os.path.expanduser('~'), '.cirun')
@@ -166,7 +167,8 @@ class Job(object):
             self.ansible_executor.write_inventory(
                 path=project_local_path, host=self.host)
             self.ansible_executor.write_variables(
-                path=project_local_path)
+                path=project_local_path,
+                zuul={'project': {'src_dir': self.project_path}})
             self.ansible_executor.write_config(
                 path=project_local_path,
                 default_roles_path=roles_paths,

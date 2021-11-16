@@ -26,10 +26,10 @@ def create_parser():
                         help='The name of the job to reproduce')
     parser.add_argument('--tenant', dest='tenant',
                         help='The name of the tenant to use')
-    parser.add_argument('--project', '-p', dest='project_name',
+    parser.add_argument('--project', '-p', dest='project_path',
                         required=True,
-                        help='The name of the project')
-    parser.add_argument('--host', dest='host',
+                        help='The path of the project')
+    parser.add_argument('--host', dest='host', required=True,
                         default='default',
                         help='The host on which to execute the job')
     parser.add_argument('--start', '-s', dest='start_playbook',

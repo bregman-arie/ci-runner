@@ -48,7 +48,7 @@ class AnsibleExecutor(object):
         if playbook:
             self.playbook = playbook
         self.playbook = os.path.join(work_dir, playbook)
-        ansible_cmd = ['ansible-playbook', playbook,
+        ansible_cmd = ['ansible-playbook', playbook, '-v',
                        "-i", "inventory", "--extra-vars", "@job_vars.yaml"]
         LOG.info("running playbook: {}".format(self.playbook))
         LOG.info("command: {}".format(' '.join(ansible_cmd)))
@@ -79,5 +79,7 @@ class AnsibleExecutor(object):
 
     def write_variables(self, path, vars_file_name='job_vars.yaml', **kwargs):
         self.vars_file_path = os.path.join(path, vars_file_name)
+        variables = AnsibleExecutor.default_vars
+        variables.update(kwargs)
         with open(self.vars_file_path, 'w+') as f:
-            yaml.dump(AnsibleExecutor.default_vars, f)
+            yaml.dump(variables, f)

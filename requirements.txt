@@ -1,3 +1,5 @@
 ansible
 crayons
+fabric>=2.0.0
+patchwork
 zuul
