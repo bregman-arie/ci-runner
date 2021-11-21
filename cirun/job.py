@@ -16,8 +16,10 @@ import logging
 import os
 import requests
 import subprocess
+import sys
 
 from cirun.ansible import AnsibleExecutor
+from cirun.exceptions.job import missing_job
 
 requests.packages.urllib3.disable_warnings()
 LOG = logging.getLogger(__name__)
@@ -25,29 +27,19 @@ LOG = logging.getLogger(__name__)
 
 class Job(object):
 
-    def __init__(self, data, system_url, name, project_path, host, tenant=None,
-                 start_playbook=0):
-        self.data = data
-        self.system_url = system_url
-        self.project_path = project_path
-        self.project_name = self.project_path.split('/')[-1]
+    def __init__(self, name, tenant, start_playbook, project_path):
         self.name = name
-        self.host = host
+        self.tenant = tenant
+        self.project_name = project_path.split('/')[-1]
         self.root_dir = os.path.join(os.path.expanduser('~'), '.cirun')
         self.start_playbook = start_playbook
-        self.parents_data = {}
         self.pre_runs = []
         self.runs = []
         self.post_runs = []
-        self.vars = {}
-        self.tenant = tenant
-        self.parents_data = self.get_parents_jobs_data(
-            self.data['parent'], self.parents_data)
-        self.playbooks = self.get_playbooks_by_order()
         self.ansible_executor = AnsibleExecutor()
         self.workspace = self.create_workspace()
 
-    def get_playbooks_by_order(self):
+    def set_playbooks(self):
         playbooks = []
         for playbook in self.pre_runs:
             if playbook:
@@ -58,7 +50,7 @@ class Job(object):
         for playbook in self.post_runs[::-1]:
             if playbook:
                 playbooks.append(playbook[0])
-        return playbooks
+        self.playbooks = playbooks
 
     def create_workspace(self):
         if not os.path.isdir(self.root_dir):
@@ -75,24 +67,37 @@ class Job(object):
         return project_job_dir
 
     @staticmethod
-    def get_job_data(url, job_name, tenant=None):
+    def get_job_data(job_name, url, tenant=None):
         job_url = url + '/api'
         if tenant:
             job_url = job_url + '/tenant/{}'.format(tenant)
         job_url = job_url + '/job/{}'.format(job_name)
+
         # TODO(abregman): Enable SSL after fixing SF ssl verification
         job_data = requests.get(job_url, verify=False)
+        if job_data.status_code == 404:
+            LOG.error(missing_job(job_name, job_url))
+            sys.exit(2)
         return job_data.json()[0]
 
-    def get_parents_jobs_data(self, job, parents_data):
-        parents_data[job] = Job.get_job_data(job_name=job, url=self.system_url,
-                                             tenant=self.tenant)
-        if 'parent' in parents_data[job] and parents_data[job]['parent']:
+    def populate_data(self, url, tenant=None, include_parents=True):
+        job_data = Job.get_job_data(self.name, url=url, tenant=tenant)
+        self.get_parents_jobs_data(job_name=self.name,
+                                   parents_data=job_data,
+                                   system_url=url)
+        return job_data
+
+    def get_parents_jobs_data(self, job_name, parents_data, system_url):
+        parents_data[job_name] = Job.get_job_data(
+            job_name=job_name, url=system_url, tenant=self.tenant)
+        if 'parent' in parents_data[job_name] \
+           and parents_data[job_name]['parent']:
             parents_data = self.get_parents_jobs_data(
-                parents_data[job]['parent'], parents_data)
-        self.pre_runs.append(parents_data[job]['pre_run'])
-        self.runs.append(parents_data[job]['run'])
-        self.post_runs.append(parents_data[job]['post_run'])
+                parents_data[job_name]['parent'],
+                parents_data, system_url=system_url)
+        self.pre_runs.append(parents_data[job_name]['pre_run'])
+        self.runs.append(parents_data[job_name]['run'])
+        self.post_runs.append(parents_data[job_name]['post_run'])
         return parents_data
 
     def clone_project(self, remote_project, path):
@@ -149,7 +154,7 @@ class Job(object):
         for i, playbook in enumerate(self.playbooks):
             LOG.info("{}: {}".format(i, playbook['path']))
 
-    def run(self):
+    def run(self, host, project_path=None):
         self.zuul_dir_path = self.clone_zuul()
         self.print_playbooks_order()
         LOG.info("======= Running Playbooks ========")
@@ -165,10 +170,10 @@ class Job(object):
             else:
                 self.sync_project(project_local_path)
             self.ansible_executor.write_inventory(
-                path=project_local_path, host=self.host)
+                path=project_local_path, host=host)
             self.ansible_executor.write_variables(
                 path=project_local_path,
-                zuul={'project': {'src_dir': self.project_path}})
+                zuul={'project': {'src_dir': project_path}})
             self.ansible_executor.write_config(
                 path=project_local_path,
                 default_roles_path=roles_paths,

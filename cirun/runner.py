@@ -36,9 +36,6 @@ class Runner(object):
         self.host = host
         self.start_playbook = start_playbook
 
-    def validate_input(self):
-        pass
-
     def copy_project_to_host(self):
         if self.host != "localhost" and self.host != "127.0.0.1":
             conn = Connection(self.host)
@@ -50,22 +47,23 @@ class Runner(object):
             cp_command = "cp -r {0} {0}".format(self.project_path)
             subprocess.run(cp_command, shell=True)
 
-    def run(self):
+    def create_job(self):
         LOG.info("gathering job info...")
-        self.job = Job(data=Job.get_job_data(
-            job_name=self.job_name, url=self.url, tenant=self.tenant),
-                       system_url=self.url,
-                       name=self.job_name,
-                       tenant=self.tenant,
+        self.job = Job(name=self.job_name, tenant=self.tenant,
                        start_playbook=self.start_playbook,
-                       project_path=self.project_path,
-                       host=self.host)
+                       project_path=self.project_path)
+        self.job.populate_data(url=self.url, tenant=self.tenant)
+        self.job.set_playbooks()
 
+    def prepare(self):
+        # A Zuul job can't be executed without the project being on the host
         LOG.info("copying project {} to {}".format(
-            crayons.yellow(self.project_path),
-            crayons.yellow(self.host)))
+            crayons.yellow(self.project_path), crayons.yellow(self.host)))
         self.copy_project_to_host()
 
+        self.create_job()
+
+    def run(self):
         LOG.info("{}: {}".format("running the job",
                                  crayons.yellow(self.job_name)))
-        self.job.run()
+        self.job.run(host=self.host, project_path=self.project_path)

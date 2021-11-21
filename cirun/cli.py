@@ -53,7 +53,7 @@ def main():
     args = parser.parse_args()
     setup_logging(args.debug)
     runner = Runner(**vars(args))
-    runner.validate_input()
+    runner.prepare()
     runner.run()
 
 
