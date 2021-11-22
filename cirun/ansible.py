@@ -23,7 +23,7 @@ LOG = logging.getLogger(__name__)
 
 class AnsibleExecutor(object):
 
-    default_vars = {'zuul': {'pipeline': None,
+    default_vars = {'zuul': {
                              'branch': None,
                              'override_checkout': None,
                              'job': None,
@@ -38,7 +38,7 @@ class AnsibleExecutor(object):
                              'tag': None,
                              'message': None,
                              'zuul_log_id': 'fake',
-                             'project': {'canonical_name': None}},
+                             'pipeline': 'fake'},
                     'zuul_log_id': 'fake'}
 
     def __init__(self, playbook=None):
@@ -75,11 +75,31 @@ class AnsibleExecutor(object):
                 kwargs['default_roles_path']))
             f.write("action_plugins={}\n".format(
                 kwargs['action_plugins']))
+            f.write("gathering = smart\n")
+            f.write("fact_caching = jsonfile\n")
+            f.write("fact_caching_connection = /tmp\n")
         LOG.info("wrote ansible config: {}".format(self.conf_file_path))
+
+    def merge(self, a, b, path=None):
+        "merges b into a"
+        if path is None:
+            path = []
+        for key in b:
+            if key in a:
+                if isinstance(a[key], dict) and isinstance(b[key], dict):
+                    self.merge(a[key], b[key], path + [str(key)])
+                elif a[key] == b[key]:
+                    pass  # same leaf value
+                else:
+                    raise Exception('Conflict at %s' % '.'.join(
+                        path + [str(key)]))
+            else:
+                a[key] = b[key]
+        return a
 
     def write_variables(self, path, vars_file_name='job_vars.yaml', **kwargs):
         self.vars_file_path = os.path.join(path, vars_file_name)
-        variables = AnsibleExecutor.default_vars
-        variables.update(kwargs)
+        variables = self.merge(AnsibleExecutor.default_vars, kwargs)
+        print(variables)
         with open(self.vars_file_path, 'w+') as f:
             yaml.dump(variables, f)

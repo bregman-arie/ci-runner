@@ -14,6 +14,7 @@
 import crayons
 from fabric import Connection
 import logging
+import os
 import patchwork.transfers
 import subprocess
 
@@ -39,9 +40,14 @@ class Runner(object):
     def copy_project_to_host(self):
         if self.host != "localhost" and self.host != "127.0.0.1":
             conn = Connection(self.host)
+            dest_path = os.path.dirname(self.project_path)
+            LOG.info("copying project {} to {}:{}".format(
+                crayons.yellow(self.project_path),
+                crayons.yellow(self.host),
+                crayons.yellow(dest_path)))
             with suppress_output():
                 patchwork.transfers.rsync(conn, self.project_path,
-                                          self.project_path)
+                                          dest_path)
                 conn.run("chmod +x {}".format(self.project_path))
         else:
             cp_command = "cp -r {0} {0}".format(self.project_path)
@@ -57,8 +63,6 @@ class Runner(object):
 
     def prepare(self):
         # A Zuul job can't be executed without the project being on the host
-        LOG.info("copying project {} to {}".format(
-            crayons.yellow(self.project_path), crayons.yellow(self.host)))
         self.copy_project_to_host()
 
         self.create_job()

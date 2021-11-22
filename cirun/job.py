@@ -173,7 +173,8 @@ class Job(object):
                 path=project_local_path, host=host)
             self.ansible_executor.write_variables(
                 path=project_local_path,
-                zuul={'project': {'src_dir': project_path}})
+                zuul={'project': {'src_dir': project_path,
+                                  'canonical_name': 'fake'}})
             self.ansible_executor.write_config(
                 path=project_local_path,
                 default_roles_path=roles_paths,
