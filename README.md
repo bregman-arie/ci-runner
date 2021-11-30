@@ -37,6 +37,12 @@ You can choose to start from a specific playbook instead of running from the beg
 
 `cirun --url https://zuul.openstack.org/ --job openstack-tox-pep8 --project neutron --start 2`
 
+### Run on specific host
+
+By default the job will spin up a container and will run the job there.
+
+You might want to execute it on an existing host. For that you can specify '--host ADDRESS'
+
 ## Supported Systems
 
 Currently only `zuul` is a supported system to use for reproducing jobs from.

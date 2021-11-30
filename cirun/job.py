@@ -11,7 +11,6 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-import crayons
 import logging
 import os
 import requests
@@ -20,6 +19,7 @@ import sys
 
 from cirun.ansible import AnsibleExecutor
 from cirun.exceptions.job import missing_job
+from cirun.git import Git
 
 requests.packages.urllib3.disable_warnings()
 LOG = logging.getLogger(__name__)
@@ -27,17 +27,15 @@ LOG = logging.getLogger(__name__)
 
 class Job(object):
 
-    def __init__(self, name, tenant, start_playbook, project_path):
+    def __init__(self, name, tenant, start_playbook, project_path, workspace):
         self.name = name
         self.tenant = tenant
-        self.project_name = project_path.split('/')[-1]
-        self.root_dir = os.path.join(os.path.expanduser('~'), '.cirun')
         self.start_playbook = start_playbook
+        self.workspace = workspace
         self.pre_runs = []
         self.runs = []
         self.post_runs = []
         self.ansible_executor = AnsibleExecutor()
-        self.workspace = self.create_workspace()
 
     def set_playbooks(self):
         playbooks = []
@@ -51,20 +49,6 @@ class Job(object):
             if playbook:
                 playbooks.append(playbook[0])
         self.playbooks = playbooks
-
-    def create_workspace(self):
-        if not os.path.isdir(self.root_dir):
-            os.makedirs(self.root_dir)
-        project_job_dir = os.path.join(self.root_dir, "{}_{}".format(
-            self.name, self.project_name))
-        if not os.path.isdir(project_job_dir):
-            os.makedirs(project_job_dir)
-            LOG.info("created dir: {}".format(crayons.yellow(
-                project_job_dir)))
-        else:
-            LOG.info("using workspace: {}".format(
-                crayons.green(project_job_dir)))
-        return project_job_dir
 
     @staticmethod
     def get_job_data(job_name, url, tenant=None):
@@ -100,53 +84,27 @@ class Job(object):
         self.post_runs.append(parents_data[job_name]['post_run'])
         return parents_data
 
-    def clone_project(self, remote_project, path):
-        if "http" not in remote_project:
-            remote_project = "ssh://{}@".format(
-                os.environ.get('USERNAME')) + remote_project
-        clone_cmd = ['git', 'clone', remote_project]
-        LOG.info("cloning project {} to {}".format(
-            crayons.cyan(remote_project), crayons.cyan(path)))
-        subprocess.run(clone_cmd, stdout=subprocess.DEVNULL,
-                       cwd=path)
-
     def get_project_to_clone(self, data):
         project = data['source_context']['project']
         for role in data['roles']:
             if project in role['project_canonical_name']:
                 return role['project_canonical_name']
 
-    def sync_project(self, project):
-        sync_cmd = ['git', 'pull']
-        # LOG.info("syncing project: {}".format(crayons.yellow(project)))
-        subprocess.run(sync_cmd, stdout=subprocess.DEVNULL,
-                       cwd=project)
-
-    def clone_zuul(self):
-        zuul_dir_path = os.path.join(self.root_dir, 'zuul')
-        if os.path.isdir(zuul_dir_path):
-            self.sync_project(zuul_dir_path)
-        else:
-            self.clone_project(
-                remote_project='https://opendev.org/zuul/zuul.git',
-                path=self.root_dir)
-        return zuul_dir_path
-
     def get_roles_paths(self, job_data):
         roles_paths = ""
         for role in job_data['roles']:
             project_path = os.path.join(self.workspace, role['target_name'])
             if os.path.isdir(project_path):
-                self.sync_project(project_path)
+                Git.sync_project(project_path)
             else:
                 # TODO(abregman): some zuul instances has the key
                 #                 named differently :|
                 if 'canonical_project_name' in role:
-                    self.clone_project(role['canonical_project_name'],
-                                       path=self.workspace)
+                    Git.clone_project(role['canonical_project_name'],
+                                      path=self.workspace)
                 else:
-                    self.clone_project(role['project_canonical_name'],
-                                       path=self.workspace)
+                    Git.clone_project(role['project_canonical_name'],
+                                      path=self.workspace)
             roles_paths = project_path + "/roles" + ":" + roles_paths
         return roles_paths
 
@@ -154,8 +112,10 @@ class Job(object):
         for i, playbook in enumerate(self.playbooks):
             LOG.info("{}: {}".format(i, playbook['path']))
 
-    def run(self, host, project_path=None):
-        self.zuul_dir_path = self.clone_zuul()
+    def run(self, node, root_dir, project_path=None):
+        self.zuul_dir_path = os.path.join(root_dir, 'zuul')
+        Git.clone_project(
+            "https://opendev.org/zuul/zuul.git", root_dir)
         self.print_playbooks_order()
         LOG.info("======= Running Playbooks ========")
         for playbook in self.playbooks[self.start_playbook:]:
@@ -164,13 +124,10 @@ class Job(object):
             project_to_clone = self.get_project_to_clone(playbook)
             project_local_path = os.path.join(
                 self.workspace, project_to_clone.rsplit('/')[-1])
-            if not os.path.isdir(os.path.join(project_local_path)):
-                self.clone_project(remote_project=project_to_clone,
-                                   path=self.workspace)
-            else:
-                self.sync_project(project_local_path)
+            Git.clone_project(remote_project=project_to_clone,
+                              path=self.workspace)
             self.ansible_executor.write_inventory(
-                path=project_local_path, host=host)
+                path=project_local_path, host=node.address)
             self.ansible_executor.write_variables(
                 path=project_local_path,
                 zuul={'project': {'src_dir': project_path,

@@ -57,11 +57,18 @@ class AnsibleExecutor(object):
             LOG.error("Oh no! something went terribly wrong...good bye! :)")
             sys.exit(2)
 
-    def write_inventory(self, path, host):
+    def write_inventory(self, path, host, local=True,
+                        containers="podman", python_interpreter="/usr/bin/python3"):
         self.inventory_path = os.path.join(path, 'inventory')
         with open(self.inventory_path, 'w+') as f:
-            f.write("[all]\n")
-            f.write(host)
+            if local:
+                f.write("[local]\n")
+                f.write(
+                    "{} ansible_connection={} ansible_python_interpreter={} \
+".format(host, containers, python_interpreter))
+            else:
+                f.write("[all]\n")
+                f.write(host)
         LOG.info("wrote inventory: {}".format(self.inventory_path))
 
     def write_config(self, path, conf_file_name='ansible.cfg', **kwargs):

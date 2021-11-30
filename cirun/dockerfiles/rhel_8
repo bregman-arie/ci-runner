@@ -1,0 +1,37 @@
+# Copyright (C) 2020 Red Hat
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License. You may obtain
+# a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+
+FROM ubi8
+USER root
+RUN dnf update -y && dnf install -y sudo bzip2 cmake gcc gcc-c++ git iproute make python3 python3-devel python3-setuptools python3-virtualenv libpq-devel rsync procps-ng unzip diffutils gettext libpq-devel && dnf install -y http://rhos-release.virt.bos.redhat.com/repos/rhos-release/rhos-release-latest.noarch.rpm && yum clean all
+
+RUN update-alternatives --set python /usr/bin/python3
+
+# Zuul except /bin/pip to be available
+RUN ln -s /bin/pip3 /bin/pip
+RUN /bin/pip3 install -U "tox>=3.8.0"
+
+# Ensure rhos-release is setup
+# RUN rhos-release -u
+
+# Zuul uses revoke-sudo. We can simulate that by moving the default sudoers to zuul
+# And this will prevent root from using sudo when the file is removed by revoke-sudo
+RUN mv /etc/sudoers /etc/sudoers.d/zuul && grep includedir /etc/sudoers.d/zuul > /etc/sudoers && sed -e 's/.*includedir.*//' -i /etc/sudoers.d/zuul && chmod 440 /etc/sudoers
+
+# Create fake zuul users
+RUN echo "zuul:x:0:0:root:/root:/bin/bash" >> /etc/passwd
+
+# Enable root local bin
+ENV PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+WORKDIR /root

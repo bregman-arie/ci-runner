@@ -29,8 +29,7 @@ def create_parser():
     parser.add_argument('--project', '-p', dest='project_path',
                         required=True,
                         help='The path of the project')
-    parser.add_argument('--host', dest='host', required=True,
-                        default='default',
+    parser.add_argument('--host', dest='host',
                         help='The host on which to execute the job')
     parser.add_argument('--start', '-s', dest='start_playbook',
                         default=0, type=int,
