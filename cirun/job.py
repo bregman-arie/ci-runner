@@ -14,7 +14,6 @@
 import logging
 import os
 import requests
-import subprocess
 import sys
 
 from cirun.ansible import AnsibleExecutor
@@ -35,6 +34,7 @@ class Job(object):
         self.pre_runs = []
         self.runs = []
         self.post_runs = []
+        self.variables = {}
         self.ansible_executor = AnsibleExecutor()
 
     def set_playbooks(self):
@@ -74,6 +74,7 @@ class Job(object):
     def get_parents_jobs_data(self, job_name, parents_data, system_url):
         parents_data[job_name] = Job.get_job_data(
             job_name=job_name, url=system_url, tenant=self.tenant)
+        self.variables.update(parents_data[job_name]['variables'])
         if 'parent' in parents_data[job_name] \
            and parents_data[job_name]['parent']:
             parents_data = self.get_parents_jobs_data(
@@ -131,7 +132,8 @@ class Job(object):
             self.ansible_executor.write_variables(
                 path=project_local_path,
                 zuul={'project': {'src_dir': project_path,
-                                  'canonical_name': 'fake'}})
+                                  'canonical_name': 'fake'}},
+                **self.variables)
             self.ansible_executor.write_config(
                 path=project_local_path,
                 default_roles_path=roles_paths,

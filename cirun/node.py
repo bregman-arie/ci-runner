@@ -11,13 +11,10 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-import crayons
 import logging
 import os
 import subprocess
 import sys
-
-from cirun.git import Git
 
 
 LOG = logging.getLogger(__name__)
@@ -43,13 +40,14 @@ class Node(object):
 
     def stop_and_remove_container(self, name):
         cmd = "podman container stop {}".format(name)
-        res = subprocess.run(cmd, shell=True)
+        subprocess.run(cmd, shell=True)
         cmd = "podman container rm {}".format(name)
-        res = subprocess.run(cmd, shell=True)
+        subprocess.run(cmd, shell=True)
 
     def run_container(self, name, project):
         self.stop_and_remove_container(name)
-        cmd = "podman run --name {0} -v {1}:{1}:z -d {0} sleep infinity".format(name, project)
+        cmd = "podman run --name {0} -v {1}:{1}:z -d {0} sleep infinity\
+".format(name, project)
         res = subprocess.run(cmd, shell=True)
         if res.returncode != 0:
             LOG.error(res.stdout)

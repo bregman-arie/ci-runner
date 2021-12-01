@@ -27,6 +27,7 @@ class AnsibleExecutor(object):
                              'branch': None,
                              'override_checkout': None,
                              'job': None,
+                             'projects': {},
                              'build': '123456789',
                              'change': '123456789',
                              'executor': {'hostname': 'local',
@@ -58,7 +59,8 @@ class AnsibleExecutor(object):
             sys.exit(2)
 
     def write_inventory(self, path, host, local=True,
-                        containers="podman", python_interpreter="/usr/bin/python3"):
+                        containers="podman",
+                        python_interpreter="/usr/bin/python3"):
         self.inventory_path = os.path.join(path, 'inventory')
         with open(self.inventory_path, 'w+') as f:
             if local:
@@ -107,6 +109,7 @@ class AnsibleExecutor(object):
     def write_variables(self, path, vars_file_name='job_vars.yaml', **kwargs):
         self.vars_file_path = os.path.join(path, vars_file_name)
         variables = self.merge(AnsibleExecutor.default_vars, kwargs)
-        print(variables)
         with open(self.vars_file_path, 'w+') as f:
             yaml.dump(variables, f)
+        LOG.info("wrote ansible variables file: {}".format(
+            self.vars_file_path))

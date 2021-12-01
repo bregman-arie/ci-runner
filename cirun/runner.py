@@ -64,7 +64,7 @@ class Runner(object):
                        start_playbook=self.start_playbook,
                        project_path=self.project_path,
                        workspace=self.workspace)
-        job_data = self.job.populate_data(url=self.url, tenant=self.tenant)
+        self.job.populate_data(url=self.url, tenant=self.tenant)
         self.job.set_playbooks()
 
     def create_workspace(self):
